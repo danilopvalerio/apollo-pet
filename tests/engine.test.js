@@ -48,14 +48,14 @@ test('olhar acompanha o ponteiro mesmo longe do pet e em direção oposta ao mou
  }
 });
 
-test('digitação tem prioridade no olhar, inclusive com mouse em movimento e teclas seguradas',()=>{
+test('digitação e mouse juntos centralizam o olhar para baixo; parar cada entrada retoma a outra',()=>{
  for(const isDog of [false,true]){
   const e=new Engine(isDog,false),t=e.last,cfg={...(isDog?dog:cat),random:false};
   advance(e,t,t+400,cfg,{cursor:{x:1000,y:20},moved:true,dx:1});assert.ok(e.ex>8);assert.ok(e.ey<0);
   e.input({held:['KeyP'],recent:['KeyP']},t+410);advance(e,t+410,t+900,cfg);
   assert.ok(e.ex<0);assert.ok(e.hx<0);assert.ok(e.ey>0);
   advance(e,t+910,t+1400,cfg,{cursor:{x:1200,y:0},moved:true,dx:1});
-  assert.ok(e.ex<0);assert.ok(e.hx<0);assert.ok(e.ey>0);
+  assert.ok(Math.abs(e.ex)<.1);assert.ok(Math.abs(e.hx)<.1);assert.ok(Math.abs(e.tilt)<.01);assert.ok(e.ey>7);
   e.input({held:['KeyP','KeyQ'],recent:['KeyQ']},t+1410);advance(e,t+1410,t+1900,cfg);
   assert.ok(Math.abs(e.hx-(keymap.get('KeyQ').x-bp(e,252,132).x)*.08)<.3);assert.ok(e.ey>0);
   e.input({held:[]},t+1910);advance(e,t+1910,t+2400,cfg,{cursor:{x:1200,y:0},moved:true,dx:1});
@@ -63,13 +63,27 @@ test('digitação tem prioridade no olhar, inclusive com mouse em movimento e te
  }
 });
 
-test('toque rápido mantém o olhar na última tecla durante a pausa curta e depois volta ao ponteiro',()=>{
+test('toque rápido divide atenção durante a pausa curta e depois volta ao ponteiro',()=>{
  for(const isDog of [false,true]){
   const e=new Engine(isDog,false),t=e.last,cfg={...(isDog?dog:cat),random:false};
   e.input({recent:['KeyP'],cursor:{x:1000,y:0}},t);
   advance(e,t,t+320,cfg,{cursor:{x:1000,y:0},moved:true,dx:1});
-  assert.equal(e.recent.length,0);assert.ok(e.ex<0);assert.ok(e.ey>0);
+  assert.equal(e.recent.length,0);assert.ok(Math.abs(e.ex)<.1);assert.ok(Math.abs(e.hx)<.1);assert.ok(e.ey>7);
   advance(e,t+320,t+850,cfg,{cursor:{x:1000,y:0},moved:true,dx:1});assert.ok(e.ex>8);assert.ok(e.ey<0);
+ }
+});
+
+test('atenção dividida independe da posição do cursor e funciona sem coordenadas',()=>{
+ for(const isDog of [false,true]){
+  for(const cursor of [{x:-1000,y:0},{x:1200,y:900},null]){
+   const e=new Engine(isDog,false),t=e.last,cfg={...(isDog?dog:cat),random:false};
+   e.input({held:['KeyP'],recent:['KeyP']},t);
+   advance(e,t,t+800,cfg,{cursor,moved:true,dx:1});
+   assert.ok(Math.abs(e.ex)<.1);assert.ok(Math.abs(e.hx)<.1);assert.ok(Math.abs(e.tilt)<.01);assert.ok(e.ey>7);
+   // Clicking a stationary mouse must let typing regain the gaze.
+   advance(e,t+800,t+1500,cfg,{cursor,clicked:true});
+   assert.ok(e.ex<0);assert.ok(e.hx<0);assert.ok(e.ey>0);
+  }
  }
 });
 
