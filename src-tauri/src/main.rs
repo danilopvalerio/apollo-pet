@@ -27,7 +27,7 @@ fn input_worker(app: tauri::AppHandle, enabled: Arc<AtomicBool>) {
                 rdev::EventType::KeyPress(k)=> { if let Some(c)=key_code(k) { if s.held.insert(c.clone()) && s.recent.len()<64 {s.recent.push(c);} } },
                 rdev::EventType::KeyRelease(k)=> {if let Some(c)=key_code(k) {s.held.remove(&c);}},
                 rdev::EventType::MouseMove{x,y}=>{if s.located {s.dx+=x-s.x;s.dy+=y-s.y;} s.x=x;s.y=y;s.located=true;s.moved=true;},
-                rdev::EventType::ButtonPress(_)=>{s.clicked=true;}, _=>{}
+                rdev::EventType::ButtonPress(rdev::Button::Left)=>{s.clicked=true;}, _=>{}
             }}
         }) { let _=report.emit("input-status",format!("Falha ao iniciar captura global: {:?}",e)); }
     });
@@ -62,7 +62,6 @@ fn apply(app:&tauri::AppHandle,s:&Value)->Result<(),String>{
   w.set_size(PhysicalSize::new(ww,hh)).map_err(|e|e.to_string())?;
   w.set_position(PhysicalPosition::new(area.position.x+x,area.position.y+y)).map_err(|e|e.to_string())?;
   w.set_always_on_top(p["top"].as_bool().unwrap_or(true)).map_err(|e|e.to_string())?;
-  w.set_ignore_cursor_events(p["through"].as_bool().unwrap_or(true)).map_err(|e|e.to_string())?;
   w.show().map_err(|e|e.to_string())?;
  }
  Ok(())
@@ -78,15 +77,29 @@ fn apply(app:&tauri::AppHandle,s:&Value)->Result<(),String>{
 #[tauri::command] fn list_monitors(app:tauri::AppHandle)->Result<Vec<String>,String>{let w=app.get_webview_window("settings").ok_or("Janela ausente")?;Ok(w.available_monitors().map_err(|e|e.to_string())?.iter().enumerate().map(|(i,m)|format!("{} · {} ({}×{})",i+1,m.name().map(|s|s.as_str()).unwrap_or("Monitor"),m.size().width,m.size().height)).collect())}
 #[tauri::command] fn set_autostart(app:tauri::AppHandle,enabled:bool)->Result<(),String>{let a=app.autolaunch();if enabled{a.enable()}else{a.disable()}.map_err(|e|e.to_string())}
 #[tauri::command] fn quit(app:tauri::AppHandle){app.exit(0)}
+#[tauri::command] fn show_pet_menu(window:tauri::WebviewWindow)->Result<(),String>{
+ if !["cat","dog"].contains(&window.label()){return Err("Janela inválida".into());}
+ let app=window.app_handle();
+ let move_pet=MenuItem::with_id(app,format!("move-{}",window.label()),"Mover pet",true,None::<&str>).map_err(|e|e.to_string())?;
+ let settings=MenuItem::with_id(app,"settings","Abrir configurações",true,None::<&str>).map_err(|e|e.to_string())?;
+ let exit=MenuItem::with_id(app,"exit","Fechar aplicativo",true,None::<&str>).map_err(|e|e.to_string())?;
+ let menu=Menu::with_items(app,&[&move_pet,&settings,&exit]).map_err(|e|e.to_string())?;
+ window.popup_menu(&menu).map_err(|e|e.to_string())
+}
 fn main(){tauri::Builder::default()
  .plugin(tauri_plugin_single_instance::init(|app,_,_|show_settings(app)))
  .plugin(tauri_plugin_autostart::Builder::new().args(["--background"]).build())
- .invoke_handler(tauri::generate_handler![get_settings,save_settings,list_monitors,set_autostart,quit])
+ .invoke_handler(tauri::generate_handler![get_settings,save_settings,list_monitors,set_autostart,quit,show_pet_menu])
+ .on_menu_event(|app,e|match e.id.as_ref(){
+  "settings"=>show_settings(app),"exit"=>app.exit(0),
+  "move-cat"=>{let _=app.emit_to("cat","move-pet",());},
+  "move-dog"=>{let _=app.emit_to("dog","move-pet",());},_=>{}
+ })
  .setup(|app|{
   let handle=app.handle().clone();let s=settings_path(&handle).ok().and_then(|p|fs::read(p).ok()).and_then(|b|serde_json::from_slice::<Value>(&b).ok()).filter(Value::is_object).unwrap_or_else(||json!({}));
   let enabled=Arc::new(AtomicBool::new(s["globalInput"].as_bool().unwrap_or(true)));app.manage(State{settings:Mutex::new(s.clone()),enabled:enabled.clone()});
   let settings=MenuItem::with_id(app,"settings","Configurações",true,None::<&str>)?;let exit=MenuItem::with_id(app,"exit","Sair",true,None::<&str>)?;let menu=Menu::with_items(app,&[&settings,&exit])?;
-  let mut tray=TrayIconBuilder::new().menu(&menu).tooltip("Desktop Pets").on_menu_event(|app,e|match e.id.as_ref(){"settings"=>show_settings(app),"exit"=>app.exit(0),_=>{}});
+  let mut tray=TrayIconBuilder::new().menu(&menu).tooltip("Desktop Pets");
   if let Some(icon)=app.default_window_icon(){tray=tray.icon(icon.clone());}tray.build(app)?;
   if let Err(e)=apply(&handle,&s){eprintln!("{e}");}
   if std::env::args().any(|x|x=="--background"){if let Some(w)=app.get_webview_window("settings"){let _=w.hide();}}

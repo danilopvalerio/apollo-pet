@@ -10,38 +10,116 @@ row(-2.5,[['CapsLock',1.6],...letters('ASDFGHJKL'),['Semicolon',1],['Quote',1],[
 row(7.5,[['ShiftLeft',1.2],['IntlBackslash',1],...letters('ZXCVBNM'),['Comma',1],['Period',1],['Slash',1],['IntlRo',1],['ShiftRight',1.5]]);
 row(17.5,[['ControlLeft',1.3],['MetaLeft',1],['AltLeft',1.1],['Space',6],['AltRight',1.1],['ControlRight',1.2],['ArrowLeft',1],['ArrowDown',1],['ArrowRight',1]]);
 const gameKeys=new Set(['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ControlLeft','KeyQ','KeyE','KeyR']);
-export function targets(held,recent,mouse,fast){const T=[{x:228,y:310},{x:287,y:310}];function assign(i,c){const k=keymap.get(c);if(k)T[i]={x:k.x,y:k.y-3,code:c}}
-let pair=held.filter(k=>keymap.has(k)).slice(-2);if(pair.length<2&&mouse){T[0]={mouse:true};const c=pair[0]||recent.at(-1);if(c)assign(1,c);return T}for(const c of [...recent].reverse()){if(pair.length>=(fast?2:1))break;if(!pair.includes(c)&&keymap.has(c))pair.push(c)}if(pair.length===2){pair.sort((a,b)=>keymap.get(a).x-keymap.get(b).x);assign(0,pair[0]);assign(1,pair[1])}else if(pair.length)assign(keymap.get(pair[0]).x<268?0:1,pair[0]);return T}
+export const PAW_REST_DELAY=2000,SLEEP_DELAY=45000,KEY_FADE=650,KEY_FLOAT_LIFETIME=1150,MOUSE_LOOK_DELAY=180;
+export function keyLabel(code){
+ if(/^Key[A-Z]$/.test(code))return code.slice(3);
+ if(/^Digit\d$/.test(code))return code.slice(5);
+ return ({Space:'Espaço',Enter:'↵',Backspace:'⌫',Tab:'⇥',CapsLock:'⇪',ShiftLeft:'⇧',ShiftRight:'⇧',ControlLeft:'Ctrl',ControlRight:'Ctrl',AltLeft:'Alt',AltRight:'Alt',MetaLeft:'⊞',MetaRight:'⊞',ArrowLeft:'←',ArrowRight:'→',ArrowUp:'↑',ArrowDown:'↓',Minus:'−',Equal:'=',Backquote:'`',BracketLeft:'[',BracketRight:']',Semicolon:';',Quote:"'",Backslash:'\\',IntlBackslash:'\\',IntlRo:'/',Comma:',',Period:'.',Slash:'/'}[code])||'';
+}
+export function targets(held,recent,mouse,fast,lastTyped=null){
+ const T=[{x:228,y:310},{x:287,y:310}];
+ function assign(i,code){const key=keymap.get(code);if(key)T[i]={x:key.x,y:key.y-3,code}}
+ const pressed=held.filter(code=>keymap.has(code)),tapped=recent.filter(code=>keymap.has(code));
+ if(mouse){
+  T[0]={mouse:true};
+  const code=tapped.at(-1)||(pressed.includes(lastTyped)?lastTyped:pressed.at(-1));
+  if(code)assign(1,code);
+  return T;
+ }
+ const pair=pressed.slice(-2);
+ for(const code of [...tapped].reverse()){if(pair.length>=(fast?2:1))break;if(!pair.includes(code))pair.push(code)}
+ if(pair.length===2){pair.sort((a,b)=>keymap.get(a).x-keymap.get(b).x);assign(0,pair[0]);assign(1,pair[1])}
+ else if(pair.length)assign(keymap.get(pair[0]).x<268?0:1,pair[0]);
+ return T;
+}
 export function entrance(a){const opacity=ease((a-.08)/.57);if(a<0)return{y:-375,s:1,r:0,opacity:0};if(a<.72){const q=a/.72;return{y:-375*(1-q*q),s:1+.06*q,r:-.07*Math.sin(q*P),opacity}}if(a<.85)return{y:0,s:1-.24*Math.sin(P*(a-.72)/.26),r:0,opacity:1};if(a<1.26){const q=(a-.85)/.41;return{y:-4*q*(1-q)*28,s:1-.24*(1-q)+.04*Math.sin(P*q),r:.06*Math.sin(P*q),opacity:1}}const q=clamp((a-1.26)/.72);return{y:0,s:1+.075*ease(q)-.08*Math.sin(q*P)*Math.exp(-q*4),r:.05*Math.sin(q*P*2)*(1-q),opacity:1}}
 export function bleh(a){const ant=ease((a-.22)/.32)*(1-ease((a-.74)/.18)),dip=ease((a-.92)/.22)*(1-ease((a-1.52)/.48));return{x:-10*ant-5*dip,y:47*dip,rot:(-8*ant-5*dip)*P/180,dip,surprise:ease((a-.48)/.27)*(1-ease((a-1.44)/.44)),tongue:ease((a-.76)/.16)*(1-ease((a-1.44)/.18))}}
-export function bp(p,x,y){const dx=x-252,dy=(y-303)*p.stretch,s=Math.sin(p.rock),c=Math.cos(p.rock);return{x:252+p.lean+dx*c-dy*s,y:303+p.jump+p.breath+dx*s+dy*c}}
+export function bp(p,x,y){const dx=x-252+(p.spine||0)*(303-y)/140,dy=(y-303)*p.stretch,s=Math.sin(p.rock),c=Math.cos(p.rock);return{x:252+p.lean+dx*c-dy*s,y:303+p.jump+p.breath+dx*s+dy*c}}
 export class Engine {
- constructor(dog=false,entry=true){this.dog=dog;this.phase=0;this.stretch=1.075;this.jump=this.rock=this.lean=this.breath=this.hx=this.hy=this.tilt=this.ex=this.ey=this.eL=this.eR=this.panic=this.fur=this.dance=this.stress=this.focus=0;this.near=false;this.blink=-1e6;this.nextBlink=performance.now()+2500;this.mx=94;this.my=338;this.tx=this.ty=0;this.grip=false;this.paws=[{x:228,y:310,angle:0},{x:287,y:310,angle:0}];this.held=[];this.recent=[];this.hits=[];this.gameHits=[];this.lit=new Map();this.cursor=null;this.lastMouse=this.lastClick=this.lastKey=-1e6;this.event=entry?'intro':null;this.start=performance.now()+200;this.nextEvent=performance.now()+18000;this.mode='idle';this.nextTap=0;this.side=0;this.last=performance.now();}
- input(s,t=performance.now()){this.held=(s.held||[]).filter(k=>keymap.has(k));for(const c of s.recent||[]){if(!keymap.has(c))continue;this.hits.push(t);this.lastKey=t;this.recent=this.recent.filter(r=>r.c!==c);this.recent.push({c,t});this.lit.set(c,t+180);if(gameKeys.has(c))this.gameHits.push(t)}if(s.moved){this.tx=clamp(this.tx+(s.dx||0)*.35,-18,18);this.ty=clamp(this.ty+(s.dy||0)*.35,-13,13);this.lastMouse=t}if(s.clicked)this.lastClick=this.lastMouse=t;if('cursor' in s)this.cursor=s.cursor;if((s.moved||s.clicked||s.recent?.length)&&this.event!=='intro'){this.event=null;this.nextEvent=t+15000}}
- demo(m,t=performance.now()){this.mode=m;this.event=['intro','bird','rainbow'].includes(m)?m:null;this.start=t;this.nextTap=0;this.held=[];this.recent=[];this.hits=[];this.gameHits=[];this.lit.clear();this.lastMouse=this.lastKey=this.lastClick=-1e6;this.cursor=null;this.grip=false;if(m==='panic')this.stress=this.focus=1;if(m==='intro'){this.stress=this.focus=0;this.mx=94;this.my=338;this.tx=this.ty=0}if(m==='two')this.input({held:['KeyA','KeyL'],recent:['KeyA','KeyL']},t)}
+ constructor(dog=false,entry=true){this.dog=dog;this.phase=0;this.stretch=1.075;this.jump=this.rock=this.lean=this.breath=this.hx=this.hy=this.tilt=this.ex=this.ey=this.eL=this.eR=this.panic=this.fur=this.dance=this.stress=this.focus=0;this.near=false;this.blink=-1e6;this.nextBlink=performance.now()+2500;this.mx=94;this.my=338;this.tx=this.ty=this.mouseDX=this.mouseDY=this.mouseAngle=0;this.grip=false;this.paws=[{x:228,y:310,angle:0},{x:287,y:310,angle:0}];this.held=[];this.recent=[];this.hits=[];this.gameHits=[];this.lit=new Map();this.cursor=null;this.lastMouse=this.lastMouseMove=this.lastClick=this.lastKey=-1e6;this.spine=0;this.lastTypedKey=null;this.event=entry?'intro':null;this.start=performance.now()+200;this.nextEvent=performance.now()+18000;this.mode='idle';this.nextTap=0;this.side=0;this.last=performance.now();this.lastActivity=this.last;this.petUntil=this.lastPet=-1e6;this.pet=this.sleep=this.pawRest=0;this.keyParticles=[];}
+ press(code,t){
+  const key=keymap.get(code);if(!key)return;
+  this.lastTypedKey=code;
+  this.hits.push(t);this.lastKey=this.lastActivity=t;
+  this.recent=this.recent.filter(r=>r.c!==code);this.recent.push({c:code,t});
+  this.lit.set(code,t+KEY_FADE);if(gameKeys.has(code))this.gameHits.push(t);
+  this.keyParticles.push({code,label:keyLabel(code),x:key.x,y:key.y-14,start:t});
+  if(this.keyParticles.length>24)this.keyParticles.splice(0,this.keyParticles.length-24);
+ }
+ keyGlow(code,t){return this.held.includes(code)?1:ease(((this.lit.get(code)||0)-t)/KEY_FADE)}
+ isHead(point){
+  if(!point||this.event==='intro')return false;
+  const pivot=bp(this,252,155),angle=this.rock+this.tilt,dx=point.x-pivot.x-this.hx,dy=point.y-pivot.y-this.hy;
+  const x=252+dx*Math.cos(angle)+dy*Math.sin(angle),y=155-dx*Math.sin(angle)+dy*Math.cos(angle);
+  return ((x-252)/80)**2+((y-(this.dog?137:131))/65)**2<=1;
+ }
+ petHead(point,t=performance.now()){
+  if(!this.isHead(point))return false;
+  this.lastActivity=this.lastPet=t;this.petUntil=t+1700;this.event=null;this.mode='idle';
+  this.nextEvent=t+15000;this.stress=Math.max(0,this.stress-.18);return true;
+ }
+ input(s,t=performance.now()){
+  if(s.held)this.held=s.held.filter(k=>keymap.has(k));
+  for(const code of s.recent||[])this.press(code,t);
+  if(s.moved){this.mouseDX+=Number.isFinite(s.dx)?s.dx*.35:0;this.mouseDY+=Number.isFinite(s.dy)?s.dy*.35:0;this.lastMouse=this.lastMouseMove=t}
+  if(s.clicked)this.lastClick=this.lastMouse=t;
+  if('cursor' in s)this.cursor=s.cursor&&Number.isFinite(s.cursor.x)&&Number.isFinite(s.cursor.y)?s.cursor:null;
+  if(s.moved||s.clicked||s.recent?.some(k=>keymap.has(k))){
+   this.lastActivity=t;
+   if(this.event!=='intro'){this.event=null;this.nextEvent=t+15000}
+  }
+ }
+ demo(m,t=performance.now()){
+  this.mode=['pet','sleep'].includes(m)?'idle':m;this.event=['intro','bird','rainbow'].includes(m)?m:null;
+  this.start=this.lastActivity=t;this.nextTap=0;this.held=[];this.recent=[];this.hits=[];this.gameHits=[];this.lit.clear();this.keyParticles=[];
+  this.lastMouse=this.lastMouseMove=this.lastKey=this.lastClick=-1e6;this.petUntil=-1e6;this.pet=this.sleep=0;this.cursor=null;this.grip=false;this.tx=this.ty=this.mouseDX=this.mouseDY=0;
+  this.lastTypedKey=null;
+  if(m==='panic')this.stress=this.focus=1;
+  if(m==='intro'){this.stress=this.focus=0;this.mx=94;this.my=338}
+  if(m==='two')this.input({held:['KeyA','KeyL'],recent:['KeyA','KeyL']},t);
+  if(m==='pet'){this.lastPet=t;this.petUntil=t+1700}
+  if(m==='sleep'){this.lastActivity=t-SLEEP_DELAY;this.event=null}
+ }
  step(t,c){const dt=clamp((t-this.last)/1000,.001,.12);this.last=t;const sm=(a,b,s=12)=>a+(b-a)*(1-Math.exp(-s*dt));const q=(t-this.start)/1000;const m=this.mode;
- if(['curious','dance'].includes(m)){const r=32+136*(.5+.5*Math.cos(q*1.15));this.cursor={x:252+Math.cos(q*1.8)*r,y:125+Math.sin(q*1.8)*r*.7};this.lastMouse=t;this.tx=Math.sin(q*1.8)*15;this.ty=Math.cos(q*1.8)*10}
- if(['mouse','mixed','game'].includes(m)){this.lastMouse=t;this.tx=Math.sin(t/250)*18;this.ty=Math.sin(t/440)*12;if(t%950<60)this.lastClick=t}
+ // Consume movement once per frame, then let the mouse settle back under the paw.
+ this.tx=clamp(this.tx*Math.exp(-5*dt)+this.mouseDX,-18,18);this.ty=clamp(this.ty*Math.exp(-5*dt)+this.mouseDY,-13,13);this.mouseDX=this.mouseDY=0;this.mouseAngle=sm(this.mouseAngle,this.grip?this.tx*.005:0,7);
+ if(['curious','dance'].includes(m)){const r=32+136*(.5+.5*Math.cos(q*1.15));this.cursor={x:252+Math.cos(q*1.8)*r,y:125+Math.sin(q*1.8)*r*.7};this.lastMouse=this.lastMouseMove=t;this.tx=Math.sin(q*1.8)*15;this.ty=Math.cos(q*1.8)*10}
+ if(['mouse','mixed','game'].includes(m)){this.lastMouse=this.lastMouseMove=t;this.tx=Math.sin(t/250)*18;this.ty=Math.sin(t/440)*12;if(t%950<60)this.lastClick=t}
  const interval=m==='normal'?420:['fast','panic'].includes(m)?70:m==='mixed'?125:m==='game'?230:0;
- if(interval&&t>=this.nextTap){let c;if(m==='game'){c=['KeyW','KeyA','KeyW','KeyD','Space','KeyS'][this.side++%6];this.held=[c]}else{const pool=keys.filter(k=>k.code.startsWith('Key')&&(k.x<268)===(this.side++%2===0));c=pool[Math.floor(Math.random()*pool.length)].code}this.hits.push(t);this.lastKey=t;this.recent=this.recent.filter(r=>r.c!==c);this.recent.push({c,t});this.lit.set(c,t+180);if(gameKeys.has(c))this.gameHits.push(t);this.nextTap=t+interval}
+ if(interval&&t>=this.nextTap){let c;if(m==='game'){c=['KeyW','KeyA','KeyW','KeyD','Space','KeyS'][this.side++%6];this.held=[c]}else{const pool=keys.filter(k=>k.code.startsWith('Key')&&(k.x<268)===(this.side++%2===0));c=pool[Math.floor(Math.random()*pool.length)].code}this.press(c,t);this.nextTap=t+interval}
+ if(this.held.length||['mouse','mixed','game','curious','dance'].includes(m))this.lastActivity=t;
+ this.idleFor=Math.max(0,t-this.lastActivity);this.pawRest=ease((this.idleFor-PAW_REST_DELAY)/800);
+ this.pet=sm(this.pet,t<this.petUntil?1:0,8);
+ const sleepy=m==='idle'&&this.idleFor>=SLEEP_DELAY&&t>=this.petUntil&&this.event!=='intro';
+ this.sleep=sm(this.sleep,sleepy?1:0,sleepy?2:9);
+ if(sleepy)this.event=null;
+ this.keyParticles=this.keyParticles.filter(p=>t-p.start<KEY_FLOAT_LIFETIME);
+ for(const code of this.held)this.lit.set(code,t+KEY_FADE);
  this.hits=this.hits.filter(x=>t-x<1000);this.recent=this.recent.filter(r=>t-r.t<240);this.gameHits=this.gameHits.filter(x=>t-x<2300);for(const [k,v] of this.lit)if(v<t)this.lit.delete(k);
- const rate=this.hits.length,typing=t-this.lastKey<350||this.held.length>0,fast=rate>=4,gaming=m==='game'||t-this.lastMouse<1400&&(this.gameHits.length>=3||this.held.some(k=>gameKeys.has(k))),mouse=t-this.lastMouse<(gaming?1500:700);this.rate=rate;this.click=t-this.lastClick<150;
+ const rate=this.hits.length,typing=t-this.lastKey<350||this.held.length>0,fast=rate>=4,gaming=m==='game'||t-this.lastMouse<1400&&(this.gameHits.length>=3||this.held.some(k=>gameKeys.has(k))),mouse=t-this.lastMouse<(gaming?1500:1200);this.rate=rate;this.click=t-this.lastClick<150;
  this.focus=sm(this.focus,gaming?1:typing?clamp((rate-3)/7):0,2);this.stress=m==='panic'?1:clamp(this.stress+dt*(gaming?-.24:rate>=6?.08+Math.min(12,rate-6)*.023:typing?-.06:-.17));
- if(!this.event&&m==='idle'&&!typing&&!mouse&&!this.near&&c.random&&t>this.nextEvent){this.event=Math.random()<.7?'bird':'rainbow';this.start=t}
+ if(!this.event&&m==='idle'&&!typing&&!mouse&&!this.near&&this.idleFor<SLEEP_DELAY-5000&&this.pet<.01&&this.sleep<.01&&c.random&&t>this.nextEvent){this.event=Math.random()<.7?'bird':'rainbow';this.start=t}
  let age=(t-this.start)/1000;if(this.event==='intro'&&age>2.2||this.event==='bird'&&age>7||this.event==='rainbow'&&age>3.94){this.event=null;this.mode='idle';this.nextEvent=t+14000+Math.random()*12000}
  const ev=this.event,a=age*.85,pose=ev==='rainbow'?bleh(a):null,intro=ev==='intro'&&c.entrance?entrance(age-(this.dog?.12:0)):null;
- this.intro=intro;this.pose=pose;this.age=age;const center=bp(this,252,132),dist=this.cursor?Math.hypot((this.cursor.x-center.x-this.hx)/(76*c.near),(this.cursor.y-center.y-this.hy)/(61*c.near)):Infinity;this.near=!ev&&dist<(this.near?1.16:1);const curious=this.near&&!gaming;
- this.panic=sm(this.panic,ev?0:this.dog?ease((this.stress-.38)/.32):ease((this.stress-.78)/.16),5);this.fur=sm(this.fur,!this.dog&&!ev?ease((this.stress-.85)/.13):0,4);this.dance=sm(this.dance,this.dog&&c.dance&&curious&&!typing?1-this.stress:0,4);this.phase+=dt*(this.dog?2.1+this.dance*7.2+this.stress*3:2.1+this.stress*5)*c.tailSpeed;
+ this.intro=intro;this.pose=pose;this.age=age;const center=bp(this,252,132),dist=this.cursor?Math.hypot((this.cursor.x-center.x-this.hx)/(76*c.near),(this.cursor.y-center.y-this.hy)/(61*c.near)):Infinity;this.near=!ev&&this.sleep<.2&&this.pet<.2&&dist<(this.near?1.16:1);const curious=this.near&&!gaming;
+ this.panic=sm(this.panic,ev?0:this.dog?ease((this.stress-.38)/.32):ease((this.stress-.78)/.16),5);this.fur=sm(this.fur,!this.dog&&!ev?ease((this.stress-.85)/.13):0,4);this.dance=sm(this.dance,this.dog&&c.dance&&curious&&!typing?Math.max(0,1-this.stress-this.pet-this.sleep):0,4);this.phase+=dt*(this.dog?2.1+this.dance*7.2+this.stress*3:2.1+this.stress*5)*c.tailSpeed*(1-this.sleep*.8);
  let jump=0,reach=0;const birdX=age<1.3?520-age*165:age<5.5?282+Math.sin((age-1.3)*2.5)*124:173+(age-5.5)*230,birdY=115+Math.sin(age*4)*35;this.bird=ev==='bird'?{x:birdX,y:birdY}:null;
  if(ev==='bird'&&this.dog&&age>.65&&age<5.55){const u=(age-.65)%1.15;if(u<.22)jump=Math.sin(P*u/.22)*10;else if(u<.92){const v=(u-.22)/.7;jump=-4*v*(1-v)*64;reach=Math.sin(P*v)}}
- this.jump=intro?intro.y:pose?0:sm(this.jump,jump,25);this.rock=intro?intro.r:pose?0:sm(this.rock,Math.sin(this.phase)*.09*this.dance,17);this.breath=intro||pose?0:Math.sin(t/690)*1.2+Math.sin(t/54)*(this.stress*.8+this.panic*3)-Math.abs(Math.sin(this.phase))*5*this.dance;this.stretch=intro?intro.s:pose?1-pose.dip*.12:sm(this.stretch,1.075-this.focus*.20-this.panic*.025+.025*Math.cos(this.phase*2)*this.dance,4);
- const T=targets(this.held,this.recent.map(r=>r.c),mouse,fast),useMouse=!!T[0].mouse&&!ev;if(!useMouse)this.grip=false;this.lean=intro||pose?0:sm(this.lean,(useMouse?-6:0)+Math.sin(this.phase)*3.5*this.dance);let target=null;
- for(let i=0;i<2;i++){const paw=this.paws[i],v=T[i],L=!i;let x=v.mouse?228:v.x,y=v.mouse?310:v.y;if(L&&useMouse){if(!this.grip){paw.x=sm(paw.x,this.mx,23);paw.y=sm(paw.y,this.my-3,25);if(Math.hypot(paw.x-this.mx,paw.y-this.my+3)<2)this.grip=true}if(this.grip){this.mx=sm(this.mx,94+this.tx,17);this.my=sm(this.my,338+this.ty,17);paw.x=this.mx;paw.y=this.my-3+(this.click?2:0)}target=paw;continue}
+ const T=targets(this.held,this.recent.map(r=>r.c),mouse,fast,this.lastTypedKey),useMouse=!!T[0].mouse&&!ev&&this.pet<.15&&this.sleep<.1;
+ const keyboardReach=T.filter(key=>key.code),keyX=keyboardReach.length?keyboardReach.reduce((sum,key)=>sum+key.x,0)/keyboardReach.length:268;
+ const spineReach=useMouse?-11+clamp(this.tx*.12,-2,2)+(keyboardReach.length?clamp((keyX-268)*.035,-3,3):0):typing?clamp((keyX-268)*.05,-5,5):0;
+ this.spine=intro||pose?0:sm(this.spine,this.pet>.15||this.sleep>.1?0:spineReach,6);
+ this.jump=intro?intro.y:pose?0:sm(this.jump,jump,25);this.rock=intro?intro.r:pose?0:sm(this.rock,Math.sin(this.phase)*.09*this.dance,17);this.breath=intro||pose?0:(1-this.sleep)*Math.sin(t/690)*1.2+this.sleep*Math.sin(t/1450)*2+Math.sin(t/54)*(this.stress*.8+this.panic*3)-Math.abs(Math.sin(this.phase))*5*this.dance;this.stretch=intro?intro.s:pose?1-pose.dip*.12:sm(this.stretch,1.075-this.focus*.20-this.panic*.025-this.sleep*.12+.025*Math.cos(this.phase*2)*this.dance,4);
+ if(!useMouse)this.grip=false;this.lean=intro||pose?0:sm(this.lean,(useMouse?-6:0)+Math.sin(this.phase)*3.5*this.dance);
+ for(let i=0;i<2;i++){const paw=this.paws[i],v=T[i],L=!i;let x=v.mouse?228:v.x,y=v.mouse?310:v.y;if(v.mouse&&!useMouse){x=228;y=310}if(!v.code&&!(L&&useMouse)&&!ev){const tucked=bp(this,L?211:293,257),ground=bp(this,L?192:312,298);x=tucked.x+(ground.x-tucked.x)*this.pawRest;y=tucked.y+(ground.y-tucked.y)*this.pawRest}if(L&&useMouse){if(!this.grip){paw.x=sm(paw.x,this.mx,23);paw.y=sm(paw.y,this.my-3,25);if(Math.hypot(paw.x-this.mx,paw.y-this.my+3)<2)this.grip=true}if(this.grip){this.mx=sm(this.mx,94+this.tx,17);this.my=sm(this.my,338+this.ty,17);paw.x=this.mx;paw.y=this.my-3+(this.click?2:0)}continue}
  if(ev==='bird'&&age>.6&&age<5.55){const r=this.dog?reach*((birdX<252)===L?1:.55):(birdX<252)===L?Math.pow(Math.max(0,Math.sin(age*5.4)),.6):0;x=(L?228:287)+(clamp(birdX,130,400)-(L?228:287))*r;y=this.dog?310+this.jump-r*92:310+(clamp(birdY+15,105,220)-310)*r}
- if(this.dog&&!v.code&&!ev)y-=Math.max(0,Math.sin(this.phase+(L?0:P)))*6*this.dance;if(pose){x=L?228:287;y=310}if(intro){const spread=clamp(-intro.y/150);paw.x=(L?228:287)+(L?-1:1)*24*spread;paw.y=310+intro.y-45*spread;continue}paw.x=sm(paw.x,x,fast?34+this.panic*13:26);paw.y=sm(paw.y,y,fast?37:29);if(pose&&a>.45){paw.x=x;paw.y=y;paw.angle=0}if(v.code)target=paw}
- if(this.held.length>=2)target={x:(this.paws[0].x+this.paws[1].x)/2,y:(this.paws[0].y+this.paws[1].y)/2};if(gaming)target={x:252+this.tx*.7,y:175};if(curious)target=this.cursor;if(this.bird)target=this.bird;
- this.hx=pose?pose.x:intro?0:sm(this.hx,target?clamp((target.x-center.x)*.08,-15,15):0);this.hy=pose?pose.y:intro?0:sm(this.hy,ev==='bird'?-5:this.focus*15,4);this.tilt=pose?pose.rot:intro?0:sm(this.tilt,target?clamp((target.x-center.x)*.0015,-.24,.2):0);this.ex=sm(this.ex,target?clamp((target.x-center.x-this.hx)/9,-11,11):0,19);this.ey=sm(this.ey,target?clamp((target.y-center.y-this.hy)/12,-10,8):0,19);
- const wag=Math.sin(this.phase+.45)*.22*this.dance,fold=pose?pose.dip*.59:0,tremor=Math.sin(t/58)*this.panic*.12,attention=curious?clamp((this.cursor.x-center.x)/450,-.18,.18):0;this.eL=sm(this.eL,-this.stress*.4-this.panic*.48+this.focus*.16+wag-fold+tremor+attention,18);this.eR=sm(this.eR,this.stress*.4+this.panic*.48-this.focus*.16+wag+fold-tremor+attention,18);
- if(t>this.nextBlink){this.blink=t;this.nextBlink=t+2700+Math.random()*2200}this.eyeOpen=t-this.blink<170?Math.max(.04,Math.abs(Math.cos(P*(t-this.blink)/170))):1;
- this.status=intro?'Chegando…':ev==='bird'?(this.dog?'Pulando!':'Caçando!'):pose?'🌈 Bleh!':!this.dog&&this.stress>=.9?'Arrepiado!':this.stress>=(this.dog?.6:.8)?'Desesperado!':this.dance>.2?'Sambando!':curious?'Curioso':this.focus>.55?'Concentrado':typing||mouse?'Atento':'Tranquilo';return this;}
+ if(this.dog&&!v.code&&!ev)y-=Math.max(0,Math.sin(this.phase+(L?0:P)))*6*this.dance;if(pose){x=L?228:287;y=310}if(intro){const spread=clamp(-intro.y/150);paw.x=(L?228:287)+(L?-1:1)*24*spread;paw.y=310+intro.y-45*spread;continue}const resting=!v.code&&!ev;const speed=resting?7:fast?34+this.panic*13:26;paw.x=sm(paw.x,x,speed);paw.y=sm(paw.y,y,resting?7:fast?37:29);if(pose&&a>.45){paw.x=x;paw.y=y;paw.angle=0}}
+ // Typing wins the gaze; a stationary pointer lets the pet look forward again.
+ const typingKeys=typing?T.filter(key=>key.code):[];
+ const keyboardTarget=typingKeys.length?{x:typingKeys.reduce((sum,key)=>sum+key.x,0)/typingKeys.length,y:typingKeys.reduce((sum,key)=>sum+key.y,0)/typingKeys.length}:typing?keymap.get(this.lastTypedKey):null;
+ const target=keyboardTarget||(t-this.lastMouseMove<MOUSE_LOOK_DELAY?this.cursor:null)||this.bird||null;
+ this.hx=pose?pose.x:intro?0:sm(this.hx,target?clamp((target.x-center.x)*.08,-15,15):0);this.hy=pose?pose.y:intro?0:sm(this.hy,this.pet*-12+this.sleep*14+(ev==='bird'?-5:this.focus*15),6);this.tilt=pose?pose.rot:intro?0:sm(this.tilt,(target?clamp((target.x-center.x)*.0015,-.24,.2):0)*(1-this.pet)*(1-this.sleep)-this.pet*.11+this.sleep*.10);this.ex=sm(this.ex,target?clamp((target.x-center.x-this.hx)/9,-11,11):0,19);this.ex*=1-this.sleep;this.ey=sm(this.ey,target?clamp((target.y-center.y-this.hy)/12,-10,8):0,19);this.ey*=1-this.sleep;
+ const wag=Math.sin(this.phase+.45)*.22*this.dance,fold=pose?pose.dip*.59:0,tremor=Math.sin(t/58)*this.panic*.12,attention=curious?clamp((this.cursor.x-center.x)/450,-.18,.18):0;this.eL=sm(this.eL,-this.stress*.4-this.panic*.48+this.focus*.16+wag-fold+tremor+attention-this.pet*.85-this.sleep*.18,12);this.eR=sm(this.eR,this.stress*.4+this.panic*.48-this.focus*.16+wag+fold-tremor+attention+this.pet*.85+this.sleep*.18,12);
+ if(t>this.nextBlink){this.blink=t;this.nextBlink=t+2700+Math.random()*2200}this.eyeOpen=t-this.blink<170?Math.max(.04,Math.abs(Math.cos(P*(t-this.blink)/170))):1;this.eyeOpen*=1-Math.max(this.pet*.98,this.sleep*.99);
+ this.status=intro?'Chegando…':this.pet>.2?'Gostando do carinho':this.sleep>.5?'Dormindo…':ev==='bird'?(this.dog?'Pulando!':'Caçando!'):pose?'🌈 Bleh!':!this.dog&&this.stress>=.9?'Arrepiado!':this.stress>=(this.dog?.6:.8)?'Desesperado!':this.dance>.2?'Sambando!':curious?'Curioso':this.focus>.55?'Concentrado':typing||mouse?'Atento':'Tranquilo';return this;}
 }
