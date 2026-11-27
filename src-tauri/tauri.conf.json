@@ -1,0 +1,10 @@
+{
+ "$schema":"https://schema.tauri.app/config/2", "productName":"Desktop Pets", "version":"0.1.0", "identifier":"com.desktoppets.app",
+ "build":{"beforeDevCommand":"npm run dev","devUrl":"http://localhost:1420","beforeBuildCommand":"npm run build","frontendDist":"../dist"},
+ "app":{"withGlobalTauri":true,"security":{"csp":"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"},"windows":[
+ {"label":"settings","title":"Desktop Pets · Configurações","width":980,"height":760,"minWidth":620,"minHeight":460,"url":"index.html","center":true},
+ {"label":"cat","title":"Desktop Pets · Gato","url":"index.html?pet=cat","width":300,"height":240,"visible":false,"transparent":true,"decorations":false,"resizable":false,"alwaysOnTop":true,"skipTaskbar":true,"focus":false,"shadow":false},
+ {"label":"dog","title":"Desktop Pets · Cachorro","url":"index.html?pet=dog","width":300,"height":240,"visible":false,"transparent":true,"decorations":false,"resizable":false,"alwaysOnTop":true,"skipTaskbar":true,"focus":false,"shadow":false}
+ ]},
+ "bundle":{"active":true,"targets":["nsis","deb"],"icon":["icons/32x32.png","icons/128x128.png","icons/128x128@2x.png","icons/icon.ico"],"category":"Entertainment","shortDescription":"Mascotes animados e personalizáveis","windows":{"webviewInstallMode":{"type":"offlineInstaller","silent":true},"nsis":{"installMode":"currentUser","languages":["PortugueseBR","English"],"displayLanguageSelector":false}},"linux":{"deb":{"depends":["libx11-6","libxtst6","libxi6"]}}}
+}

@@ -1,0 +1,35 @@
+name: Instaladores de produção
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm run production:windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DesktopPets-Windows
+          path: production/windows/DesktopPets-Setup.exe
+          if-no-files-found: error
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libx11-dev libxi-dev libxtst-dev
+      - run: npm run production:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DesktopPets-Linux
+          path: production/linux/desktop-pets.deb
+          if-no-files-found: error
